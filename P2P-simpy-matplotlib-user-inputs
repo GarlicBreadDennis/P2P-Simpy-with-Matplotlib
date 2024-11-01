@@ -1,0 +1,86 @@
+import simpy
+import random
+import matplotlib.pyplot as plt
+
+class Peer(object):
+    def __init__(self, env, peer_id, files, bandwidth):
+        self.env = env
+        self.id = peer_id
+        self.files = files
+        self.bandwidth = bandwidth
+        self.successful_requests = 0
+        self.successful_uploads = 0
+        self.uploaded_files = []  #List to keep track of successfully uploaded files
+        self.action = env.process(self.peer_process())
+
+    def request_file(self, peer, file):
+        yield self.env.timeout(random.uniform(0.5, 1.5))  #Simulate network delay
+        if file in peer.files:
+            print(f"{self.env.now:.2f}: Peer {self.id} requested {file} from Peer {peer.id}")
+            yield self.env.process(peer.upload_file(self, file))
+            self.successful_requests += 1
+        else:
+            print(f"{self.env.now:.2f}: Peer {peer.id} does not have {file}")
+
+    def upload_file(self, peer, file):
+        upload_time = 5 / self.bandwidth  #Simulate time based on bandwidth
+        yield self.env.timeout(upload_time)
+        print(f"{self.env.now:.2f}: Peer {self.id} uploaded {file} to Peer {peer.id}")
+        self.successful_uploads += 1
+        self.uploaded_files.append(file)  #Track the uploaded file
+
+    def peer_process(self):
+        for _ in range(2):  #Request 2 files
+            file_request = f'file_{random.randint(0, num_files - 1)}'  #Request random files
+            target_peer = random.choice(peers)
+            if target_peer != self:  #Avoid requesting from self
+                yield self.env.process(self.request_file(target_peer, file_request))
+            yield self.env.timeout(2)  #Time between requests
+
+#User inputs
+num_peers = int(input("Enter the number of peers: "))
+num_files = int(input("Enter the number of files each peer will have: "))
+
+#Start the simulation
+env = simpy.Environment()
+peers = [Peer(env, i, [f'file_{j}' for j in range(num_files)], bandwidth=random.uniform(1, 5)) for i in range(num_peers)]
+
+#Start the simulation
+env.run(until=20)
+
+#Collect data for graphs
+peer_ids = [peer.id for peer in peers]
+successful_requests = [peer.successful_requests for peer in peers]
+successful_uploads = [peer.successful_uploads for peer in peers]
+uploaded_files = [peer.uploaded_files for peer in peers]  #Collect uploaded files
+bandwidths = [peer.bandwidth for peer in peers]
+
+#Print the results
+print("\nFinal Results:")
+for peer in peers:
+    print(f"Peer {peer.id}: Successful Requests = {peer.successful_requests}, "
+          f"Successful Uploads = {peer.successful_uploads}, "
+          f"Uploaded Files = {peer.uploaded_files}, "
+          f"Files = {peer.files}, Bandwidth = {peer.bandwidth:.2f}")
+
+#Plotting the results
+plt.figure(figsize=(12, 6))
+
+#Successful Requests
+plt.subplot(1, 2, 1)
+plt.bar(peer_ids, successful_requests, color='deepskyblue', alpha=0.7)
+plt.title('Successful File Requests per Peer', fontsize=14)
+plt.xlabel('Peer ID', fontsize=12)
+plt.ylabel('Number of Successful Requests', fontsize=12)
+plt.xticks(peer_ids)
+
+#Successful Uploads
+plt.subplot(1, 2, 2)
+plt.bar(peer_ids, successful_uploads, color='limegreen', alpha=0.7)
+plt.title('Successful File Uploads per Peer', fontsize=14)
+plt.xlabel('Peer ID', fontsize=12)
+plt.ylabel('Number of Successful Uploads', fontsize=12)
+plt.xticks(peer_ids)
+
+plt.tight_layout()
+plt.show()
